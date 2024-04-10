@@ -6,9 +6,9 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torchinfo import summary # Here just to be exported
-import torchvision as tv
 
+# Here just to be exported
+from torchinfo import summary
 import torchmetrics
 
 import numpy as np
@@ -265,21 +265,6 @@ def tensorboard_writer(experiment_name: str, model_name: str, extra: str = None)
     return SummaryWriter(log_dir = log_dir)
 
 
-def image_dataloaders(folders: str | Path | list[str | Path], transform: tv.transforms.Compose, batch_size: int, num_workers: int = os.cpu_count()) -> tuple[list[DataLoader], list[str]]:
-    '''Return PyTorch DataLoaders and class names for the given folder or list of folders (with expected subfolders named by class).
-    In the non-list folders case, the folder content is checked for subfolders called train, test and valid (yes, in this order for consistency), and if any is present they are treated as the list input.
-    The first folder is assumed to be the training data and will therefore produce a shuffling dataloader, while the others will not.
-    The class names are from the first folder and assumed to be consistent across the others.'''
-    if isinstance(folders, (str, Path)):
-        data_path = Path(folders)
-        folders = subfolders if (subfolders := [full_sub for sub in ['train', 'valid', 'test'] if (full_sub := data_path / sub).is_dir()]) else [folders]
-
-    datasets = [tv.datasets.ImageFolder(folder, transform = transform) for folder in folders]
-    dataloaders = [DataLoader(ds, batch_size = batch_size, shuffle = i == 0, num_workers = num_workers, pin_memory = True) for i, ds in enumerate(datasets)]
-
-    return dataloaders, datasets[0].classes
-
-
 def download_unzip(source: str, destination: str, remove_source: bool = True) -> Path:
     '''Downloads a zipped dataset from source and unzips it at destination.
 
@@ -322,7 +307,8 @@ def download_unzip(source: str, destination: str, remove_source: bool = True) ->
 
 def plot_predictions(train_data, train_labels, test_data, test_labels, predictions = None):
     '''Plots (matplotlib) linear training data and test data and compares predictions.
-    Training data is in blue, test data in green, and predictions in red (if present).'''
+    Training data is in blue, test data in green, and predictions in red (if present).
+    '''
     plt.figure(figsize = (10, 7))
 
     plt.scatter(train_data, train_labels, c = 'b', s = 4, label = 'Training data')
@@ -333,7 +319,8 @@ def plot_predictions(train_data, train_labels, test_data, test_labels, predictio
 
 
 def plot_loss_curves(train_loss: list, train_metric: list, test_loss: list, test_metric: list):
-    '''Plots (matplotlib) training (and testing) curves from lists of values.'''
+    '''Plots (matplotlib) training (and testing) curves from lists of values.
+    '''
     epochs = range(len(train_loss))
 
     plt.figure(figsize = (15, 7))

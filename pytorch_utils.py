@@ -7,7 +7,6 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-# Here just to be exported
 from torchinfo import summary
 import torchmetrics
 
@@ -41,7 +40,7 @@ def set_seeds(seed: int = 42):
 def train_combinations(combinations: dict[str, tuple[str, str, str, int, str]],
                        model_factories: dict[str, Callable[[], nn.Module]], train_dataloaders: dict[str, DataLoader],
                        optimiser_factories: dict[str, Callable[[nn.Module], torch.optim.Optimizer]],
-                       test_dataloader: DataLoader, loss_fn: nn.Module, metric_name_and_fn: tuple[str, Callable[[torch.tensor, torch.tensor], torch.tensor]],
+                       test_dataloader: DataLoader, loss_fn: nn.Module, metric_name_and_fn: tuple[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
                        reset_seed: int = 42, device: torch.device = 'cuda' if torch.cuda.is_available() else 'cpu', show_progress_bar = True):
     '''Run a series of modelling tasks by defining combinations of models, dataloaders, optimisers and epochs, as well as an optional previously-fit combination
     to start from (e.g. for a combination which is the same as a previous one but with more epochs or different training data).
@@ -96,7 +95,7 @@ def train_combinations(combinations: dict[str, tuple[str, str, str, int, str]],
 
 
 def fit(model: nn.Module, train_dataloader: DataLoader, test_dataloader: DataLoader, 
-        optimiser: torch.optim.Optimizer, loss_fn: nn.Module, metric_name_and_fn: tuple[str, Callable[[torch.tensor, torch.tensor], torch.tensor]],
+        optimiser: torch.optim.Optimizer, loss_fn: nn.Module, metric_name_and_fn: tuple[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
         epochs: int, writer: torch.utils.tensorboard.writer.SummaryWriter,
         device: torch.device = 'cuda' if torch.cuda.is_available() else 'cpu', show_progress_bar = True, model_name: str = None) -> dict[str, list]:
     '''Trains and tests a PyTorch model.
@@ -148,7 +147,7 @@ def fit(model: nn.Module, train_dataloader: DataLoader, test_dataloader: DataLoa
 
 
 def training_step(model: nn.Module, dataloader: DataLoader,
-                  loss_fn: nn.Module, metric_fn: Callable[[torch.tensor, torch.tensor], torch.tensor], optimiser: torch.optim.Optimizer,
+                  loss_fn: nn.Module, metric_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor], optimiser: torch.optim.Optimizer,
                   device: torch.device = 'cuda' if torch.cuda.is_available() else 'cpu', show_progress_bar = True, epoch: int = None) -> tuple[float, float]:
     '''Trains a PyTorch model for a single epoch.
 
@@ -189,7 +188,7 @@ def training_step(model: nn.Module, dataloader: DataLoader,
 
 
 def testing_step(model: nn.Module, dataloader: DataLoader, 
-                 loss_fn: nn.Module, metric_fn: Callable[[torch.tensor, torch.tensor], torch.tensor],
+                 loss_fn: nn.Module, metric_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
                  device: torch.device = 'cuda' if torch.cuda.is_available() else 'cpu', show_progress_bar = True, epoch: int = None) -> tuple[float, float]:
     '''Tests a PyTorch model for a single epoch.
 
@@ -300,6 +299,14 @@ def download_unzip(source: str, destination: str, remove_source: bool = True) ->
     
     return image_path
 
+
+
+#### Info Functions ####
+
+def summ(model: nn.Module, input_size: tuple):
+    '''Shorthand for typical summary specification'''
+    return summary(model = model, input_size = (32, 3, 224, 224),
+                   col_names = ['input_size', 'output_size', 'num_params', 'trainable'], col_width = 20, row_settings = ['var_names'])
 
 
 

@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from torchinfo import summary
 import torchmetrics
+import timm
 
 import numpy as np
 
@@ -125,7 +126,7 @@ def fit(model: nn.Module, train_dataloader: DataLoader, test_dataloader: DataLoa
     model.to(device)
     for epoch in tqdm(range(1, epochs + 1), desc = model_name, disable = not show_progress_bar):
         train_loss, train_metric = training_step(model = model, dataloader = train_dataloader, loss_fn = loss_fn, metric_fn = metric_name_and_fn[1], optimiser = optimiser, device = device, show_progress_bar = show_progress_bar, epoch = epoch)
-        test_loss,  test_metric  = testing_step( model = model, dataloader = test_dataloader,  loss_fn = loss_fn, metric_fn = metric_name_and_fn[1], device = device, show_progress_bar = show_progress_bar, epoch = epoch)
+        test_loss,  test_metric  = testing_step( model = model, dataloader = test_dataloader,  loss_fn = loss_fn, metric_fn = metric_name_and_fn[1],                        device = device, show_progress_bar = show_progress_bar, epoch = epoch)
 
         print(
           f'Epoch: {epoch} | '
@@ -244,7 +245,7 @@ def save_model(model: nn.Module, target_dir: str, model_name: str):
     return model_save_path
 
 
-def tensorboard_writer(experiment_name: str, model_name: str, extra: str = None) -> torch.utils.tensorboard.writer.SummaryWriter():
+def tensorboard_writer(experiment_name: str, model_name: str, extra: str = None, save_dir = r'.\runs') -> SummaryWriter:
     '''Creates a torch.utils.tensorboard.writer.SummaryWriter() instance saving to a directory constructed from the inputs; equivalent to
 
     SummaryWriter(log_dir = 'runs/YYYY-MM-DD/experiment_name/model_name/extra')
@@ -256,7 +257,7 @@ def tensorboard_writer(experiment_name: str, model_name: str, extra: str = None)
     '''
     timestamp = datetime.now().strftime('%Y-%m-%d')
 
-    log_dir = os.path.join('runs', timestamp, experiment_name, model_name)
+    log_dir = os.path.join(save_dir, timestamp, experiment_name, model_name)
     if extra: log_dir = os.path.join(log_dir, extra)
         
     print(f'[INFO] Created SummaryWriter, saving to: {log_dir}...')
@@ -305,7 +306,7 @@ def download_unzip(source: str, destination: str, remove_source: bool = True) ->
 
 def summ(model: nn.Module, input_size: tuple):
     '''Shorthand for typical summary specification'''
-    return summary(model = model, input_size = (32, 3, 224, 224),
+    return summary(model = model, input_size = input_size,
                    col_names = ['input_size', 'output_size', 'num_params', 'trainable'], col_width = 20, row_settings = ['var_names'])
 
 

@@ -105,9 +105,9 @@ def image_pred_grid(image_df: pd.DataFrame, ncols = 4, img_width = 200, img_heig
     # Opened issue on making it easier through alt.Facet: https://github.com/altair-viz/altair/issues/3398
 
     ncols = min(ncols, len(image_df))
-    nrows = 1 + len(image_df) // ncols
+    nrows = len(image_df) // ncols + (1 if (in_last_row := len(image_df) % ncols) else 0)
     # If the last row is at least half empty and could reduce columns without increasing rows, do so
-    if allow_1_col_reduction and nrows > 1 and len(image_df) % ncols <= ncols / 2 and 1 + len(image_df) // (ncols - 1) == nrows: ncols -= 1
+    if allow_1_col_reduction and nrows > 1 and 1 <= in_last_row <= ncols / 2 and in_last_row + (nrows - 1) < ncols: ncols -= 1
 
     expanded_df = image_df.assign(
         image = image_df.path.apply(base64_image_formatter),

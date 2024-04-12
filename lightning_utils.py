@@ -9,22 +9,33 @@ import torchvision as tv
 #     # I.e. ParamsT: TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
 import pytorch_lightning as L
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateFinder, LearningRateMonitor
+from pytorch_lightning.profilers import PyTorchProfiler
 
 import os
 from pathlib import Path
+from datetime import datetime
 
+# import inspect
+from collections import OrderedDict
 from typing import Callable
 
 
 class Strike(L.LightningModule):
-    '''As in "Lightning Strike", to make a PyTorch Module a LightningModule'''
+    '''As in 'Lightning Strike', to make a PyTorch Module a LightningModule'''
     def __init__(self, model: nn.Module,
                  loss_fn: Callable[[torch.Tensor], torch.Tensor], metric_name_and_fn: tuple[str, Callable[[torch.Tensor, torch.Tensor], torch.tensor]],
                  optimiser_factory: Callable[[nn.Module], torch.optim.Optimizer],
                  prediction_fn: Callable[[torch.Tensor], torch.Tensor],
                  learning_rate = 0.001, log_at_every_step = False):
         '''Class for turning a nn.Module into a LightningModule (a lightning strike of sorts).
-        The optimiser_factory argument is a callable taking in the module, from which it extracts .parameters() and .learning_rate to produce an optimiser.'''
+        The optimiser_factory argument is a callable taking in the module, from which it extracts .parameters() and .learning_rate to produce an optimiser.
+        prediction_fn is the function to be applied to model outputs to transform them into the desired prediction format, e.g. for classification logits -> probabilities -> class.
+
+        Fields of .state_dict from by this class are the same as those of the non-wrapped .model, i.e. with no leading 'model.',
+        therefore saved state_dicts can be imported into the unwrapped and wrapped model alike with .load_state_dict.
+        (Additionally, 'model.' is automatically prepended if necessary when instead using Strike.load_from_checkpoint or when a Trainer resumes from a checkpoint).
+        '''
         super().__init__()
 
         self.model = model
@@ -41,7 +52,27 @@ class Strike(L.LightningModule):
         self.learning_rate = learning_rate
         self.log_at_every_step = log_at_every_step
         self.train_step_outputs, self.validation_step_outputs, self.test_step_outputs = dict(), dict(), dict()
+
+        # Allow Strike.load_from_checkpoint without restating all the parameters
+        ## CANNOT WORK since multiple arguments are functions, which are not pickleable
+        ## COULD SOLVE by moving them to a function producing a class without them
+        # self.save_hyperparameters(ignore = ['model', 'loss_fn']) # Ignoring because already saved since nn.Modules
     
+    def state_dict(self):
+        # Make sure that the exported state fields look like those of the wrapped .model
+        #   Interesting note: the change only seems to be required when saving a model restored from a checkpoint
+        sd = super().state_dict()
+        return OrderedDict({k[6:]: v for k, v in sd.items()}) if all(k[:6] == 'model.' for k in sd) else sd
+
+
+    def load_state_dict(self, state_dict: os.Mapping[str, torch.Any], strict: bool = True, assign: bool = False):
+        # Fields of .state_dict from by this class are the same as those of the non-wrapped .model, i.e. with no leading 'model.';
+        #   therefore it only needs to be prepended when this method is called by internal methods,
+        #   i.e. by Strike.load_from_checkpoint or through a Trainer resuming from a checkpoint.
+        # return super().load_state_dict(state_dict if inspect.stack()[1][3] in ['_load_state', 'load_model_state_dict'] else {f'model.{k}': v for k, v in state_dict.items()}, strict, assign)
+        # But can do it more generally by directly checking for the prefixes
+        return super().load_state_dict(state_dict if all(k[:6] == 'model.' for k in state_dict) else OrderedDict({f'model.{k}': v for k, v in state_dict.items()}), strict, assign)
+
     def forward(self, x):
         return self.model(x)
     
@@ -94,23 +125,6 @@ class Strike(L.LightningModule):
 
     def configure_optimizers(self):
         return self.optimiser_factory(self)
-
-
-
-class IteratedLearningRateFinder(L.callbacks.LearningRateFinder):
-    def __init__(self, at_epochs: list[int], *args, **kwargs):
-        '''CURRENTLY FAILS AT THE 2ND OCCURRENCE (despite being directly from the docs: https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.LearningRateFinder.html)
-        The lr finding tuns at epoch 0 regardless of whether 0 is in at_epochs.
-        E.g. for periodic lr adjustments pass [e for e in range(epochs) if e % period == 0]'''
-        super().__init__(*args, **kwargs)
-        self.at_epochs = at_epochs
-
-    def on_fit_start(self, *args, **kwargs):
-        return
-
-    def on_train_epoch_start(self, trainer, pl_module):
-        if trainer.current_epoch in self.at_epochs or trainer.current_epoch == 0:
-            self.lr_find(trainer, pl_module)
 
 
 
@@ -175,5 +189,33 @@ class LocalImageDataModule(L.LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.test_ds, batch_size = self.batch_size, shuffle = False, num_workers = self.num_workers, pin_memory = True, persistent_workers = True)
+
+
+
+class IteratedLearningRateFinder(LearningRateFinder):
+    def __init__(self, at_epochs: list[int], *args, **kwargs):
+        '''CURRENTLY FAILS AT THE 2ND OCCURRENCE (despite being suggested in the docs: https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.LearningRateFinder.html)
+        The lr finding tuns at epoch 0 regardless of whether 0 is in at_epochs.
+        E.g. for periodic lr adjustments pass [e for e in range(epochs) if e % period == 0]'''
+        super().__init__(*args, **kwargs)
+        self.at_epochs = at_epochs
+
+    def on_fit_start(self, *args, **kwargs):
+        return
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        if trainer.current_epoch in self.at_epochs or trainer.current_epoch == 0:
+            self.lr_find(trainer, pl_module)
+
+
+
+class TBLogger(L.loggers.TensorBoardLogger):
+    def __init__(self, experiment_name: str, model_name: str, extra: str = None, save_dir = r'.\runs', log_graph = False, default_hp_metric = True, prefix = '', **kwargs):
+        '''Saves TensorBoard logs to save_dir/YYYY-MM-DD/experiment_name/model_name/extra.
+        (It maps them to L.loggers.TensorBoardLogger's save_dir/name/version/sub_dir/)
+        '''
+        super().__init__(save_dir = save_dir, name = datetime.now().strftime('%Y-%m-%d'),
+            version = experiment_name, sub_dir = os.path.join(model_name, extra),
+            log_graph = log_graph, default_hp_metric = default_hp_metric, prefix = '', **kwargs)
 
 

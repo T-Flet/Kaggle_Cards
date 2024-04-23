@@ -16,6 +16,8 @@ import os
 import io
 from pathlib import Path
 from PIL import Image
+from operator import itemgetter
+from collections import OrderedDict
 # from itertools import batched # in Python>=3.12
 
 
@@ -52,6 +54,19 @@ def plot_img_preds(model: torch.nn.Module, image_path: str, class_names: list[st
     plt.axis(False)
 
     # Change text colour based on correctness?
+
+
+def pred_image_classes(image: Image, model: torch.nn.Module, transform: tv.transforms.Compose, class_names: list[str],
+                       device: torch.device = 'cuda' if torch.cuda.is_available() else 'cpu') -> tuple[str, float]:
+    '''Return the (ordered) predicted probabilities of each class for the given image
+    '''
+    model.eval()
+    with torch.inference_mode(): logits = model(transform(image).unsqueeze(0).to(device)) # Prepend "batch" dimension (-> [batch_size, color_channels, height, width])
+    probs = torch.softmax(logits, dim = 1)
+
+    return OrderedDict(sorted({class_names[i]: float(probs[0][i]) for i in range(len(class_names))}.items(), key = itemgetter(1), reverse = True))
+    # class_id = torch.argmax(probs, dim = 1)
+    # return class_names[class_id.cpu()], probs.unsqueeze(0).max().cpu().item()
 
 
 def record_image_preds(image_paths: str | list[str], model: torch.nn.Module, transform: tv.transforms.Compose, class_names: list[str],

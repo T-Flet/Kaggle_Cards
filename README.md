@@ -29,7 +29,7 @@ The train, test and validation directories are partitioned into 53 sub directori
 ## Comparison of best models of each type
 
 The following shows the training and performance benefits of gradient boosting over NN classification layers.
-Compare these models in [their huggingface space](https://t-flet-kaggle-cards.hf.space) (or clone the repo and python app.py).
+Compare these models in [their huggingface space](https://huggingface.co/spaces/T-Flet/Kaggle-Cards) (or clone the repo and python app.py).
 
 | **Model** | **Retrained Portion** | **Epochs** | **Time** | **test_loss** | **test_F1** |
 | ----- | ----- | ----- | ----- | ----- | ----- |
